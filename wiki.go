@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"regexp"
 )
 
 type Page struct {
@@ -27,7 +26,7 @@ func loadPage(title string) (*Page, error) {
 	return &Page{Title: title, Body: body}, nil
 }
 
-var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+var templates = template.Must(template.ParseFiles("edit.html", "view.html", "index.html"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
@@ -36,20 +35,13 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	}
 }
 
-var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
-
-func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		m := validPath.FindStringSubmatch(r.URL.Path)
-		if m == nil {
-			http.NotFound(w, r)
-			return
-		}
-		fn(w, r, m[2])
-	}
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	p := &Page{Title: "title", Body: []byte{1, 2, 3}}
+	renderTemplate(w, "index", p)
 }
 
-func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
+func viewHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/view/"):]
 	p, err := loadPage(title)
 	if err != nil {
 		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
@@ -58,7 +50,8 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	renderTemplate(w, "view", p)
 }
 
-func editHandler(w http.ResponseWriter, r *http.Request, title string) {
+func editHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/edit/"):]
 	p, err := loadPage(title)
 	if err != nil {
 		p = &Page{Title: title}
@@ -66,7 +59,8 @@ func editHandler(w http.ResponseWriter, r *http.Request, title string) {
 	renderTemplate(w, "edit", p)
 }
 
-func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
+func saveHandler(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Path[len("/save/"):]
 	body := r.FormValue("body")
 	p := &Page{Title: title, Body: []byte(body)}
 	err := p.save()
@@ -78,9 +72,10 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 }
 
 func main() {
-	http.HandleFunc("/view/", makeHandler(viewHandler))
-	http.HandleFunc("/edit/", makeHandler(editHandler))
-	http.HandleFunc("/save/", makeHandler(saveHandler))
+	http.HandleFunc("/", homeHandler)
+	http.HandleFunc("/view/", viewHandler)
+	http.HandleFunc("/edit/", editHandler)
+	http.HandleFunc("/save/", saveHandler)
 
-	log.Fatal(http.ListenAndServe("100.115.92.205:9090", nil))
+	log.Fatal(http.ListenAndServe("100.115.92.221:9090", nil))
 }
